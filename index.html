@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>日本地理クイズ</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    background: linear-gradient(160deg, #ecfdf5 0%, #e0f2fe 50%, #ede9fe 100%);
+    min-height: 100vh;
+    color: #3b3b4f;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px 14px 60px; }
+
+  /* ===== ヘッダー ===== */
+  .app-title {
+    text-align: center; font-size: 22px; font-weight: 800; color: #2a9d8f;
+    padding: 10px 0 2px; letter-spacing: 1px;
+  }
+  .app-sub { text-align: center; font-size: 12px; color: #8fb8b2; margin-bottom: 14px; }
+
+  /* ===== カード ===== */
+  .card {
+    background: #fff; border-radius: 18px; padding: 16px;
+    box-shadow: 0 4px 14px rgba(42, 157, 143, .10);
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 14px; color: #2a9d8f; margin-bottom: 10px; }
+
+  /* ===== 出題形式トグル ===== */
+  .dir-row { display: flex; gap: 8px; }
+  .dir-btn {
+    flex: 1; padding: 12px 8px; border-radius: 12px; border: 2px solid #d5ece8;
+    background: #f6fcfb; font-size: 14px; color: #5f7a76; cursor: pointer; font-weight: 700;
+  }
+  .dir-btn small { display: block; font-size: 10px; font-weight: 400; opacity: .8; margin-top: 2px; }
+  .dir-btn.on { background: #f4749b; border-color: #f4749b; color: #fff; }
+
+  /* ===== 地方選択 ===== */
+  .range-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .range-chip {
+    border: 2px solid #d5ece8; border-radius: 999px; padding: 7px 12px;
+    font-size: 13px; background: #f6fcfb; color: #5f7a76; cursor: pointer;
+    user-select: none; transition: all .15s;
+  }
+  .range-chip.on { background: #2a9d8f; border-color: #2a9d8f; color: #fff; font-weight: 700; }
+  .range-chip .cnt { font-size: 10px; opacity: .75; margin-left: 3px; }
+  .range-chip.zenkoku { border-color: #f9a06b; background: #fff7f0; color: #d97b3f; }
+  .range-chip.zenkoku.on { background: linear-gradient(135deg, #f4749b, #f9a06b); border-color: #f4749b; color: #fff; }
+
+  /* ===== メインボタン ===== */
+  .big-btn {
+    width: 100%; padding: 18px 8px; border: none; border-radius: 16px;
+    font-size: 17px; font-weight: 800; color: #fff; cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,.12);
+    background: linear-gradient(135deg, #f4749b, #f9a06b);
+  }
+  .big-btn:active { transform: scale(.97); }
+  .big-btn small { display: block; font-size: 11px; font-weight: 400; opacity: .9; margin-top: 3px; }
+
+  /* ===== 記録 ===== */
+  .rec-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 4px; border-bottom: 1px dashed #e2f2ef; font-size: 13px;
+  }
+  .rec-row:last-child { border-bottom: none; }
+  .rec-label { color: #5f7a76; font-weight: 700; }
+  .rec-val { color: #f4749b; font-weight: 800; }
+  .rec-val .of { color: #a5c8c2; font-weight: 400; font-size: 11px; }
+  .rec-empty { color: #a5c8c2; font-size: 12px; text-align: center; padding: 8px; }
+
+  /* ===== クイズ画面 ===== */
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .quiz-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .progress-box { font-size: 14px; font-weight: 800; color: #2a9d8f; }
+  .progress-box .num { font-size: 24px; color: #f4749b; }
+  .quit-btn {
+    border: none; background: #e2f2ef; color: #2a9d8f; border-radius: 999px;
+    padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .q-card {
+    background: #fff; border-radius: 20px; padding: 26px 16px; text-align: center;
+    box-shadow: 0 4px 14px rgba(42, 157, 143, .12); margin-bottom: 14px;
+    min-height: 150px; display: flex; flex-direction: column; justify-content: center;
+  }
+  .q-region {
+    display: inline-block; align-self: center; background: #e2f2ef; color: #2a9d8f;
+    border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 700; margin-bottom: 10px;
+  }
+  .q-ask { font-size: 13px; color: #8fb8b2; margin-bottom: 6px; }
+  .q-word { font-size: 34px; font-weight: 800; color: #3b3b4f; word-break: break-word; }
+
+  .answer-row { display: flex; gap: 8px; }
+  .answer-input {
+    flex: 1; padding: 14px; border-radius: 14px; border: 2px solid #d5ece8;
+    font-size: 17px; outline: none; background: #fff; min-width: 0;
+  }
+  .answer-input:focus { border-color: #2a9d8f; }
+  .answer-input.ok { border-color: #34c77b; background: #f0fdf6; }
+  .answer-input.ng { border-color: #f4749b; background: #fff5f7; animation: shake .3s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+  .submit-btn {
+    padding: 14px 20px; border: none; border-radius: 14px; background: #2a9d8f;
+    color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; white-space: nowrap;
+  }
+  .submit-btn:active { transform: scale(.97); }
+
+  .judge-box { margin-top: 14px; border-radius: 14px; padding: 14px; display: none; text-align: center; }
+  .judge-box.show { display: block; }
+  .judge-box.ok { background: #d1fadf; color: #1a7d4b; }
+  .judge-box.ng { background: #ffe0e5; color: #d13a63; }
+  .judge-mark { font-size: 22px; font-weight: 800; }
+  .judge-ans { font-size: 20px; font-weight: 800; margin-top: 2px; }
+  .judge-yomi { font-size: 12px; opacity: .8; }
+  #next-btn {
+    width: 100%; margin-top: 12px; padding: 15px; border: none; border-radius: 14px;
+    background: #2a9d8f; color: #fff; font-size: 16px; font-weight: 800; cursor: pointer;
+    box-shadow: 0 4px 10px rgba(42, 157, 143, .3); display: none;
+  }
+  #next-btn:active { transform: scale(.98); }
+  .input-note { text-align: center; font-size: 11px; color: #a5c8c2; margin-top: 10px; }
+
+  /* ===== 結果画面 ===== */
+  .result-card { text-align: center; padding: 30px 16px; }
+  .result-emoji { font-size: 48px; }
+  .result-score { font-size: 40px; font-weight: 800; color: #f4749b; margin: 6px 0; }
+  .result-score small { font-size: 15px; color: #8fb8b2; font-weight: 700; }
+  .result-msg { font-size: 14px; color: #5f7a76; margin-bottom: 6px; }
+  .result-best { font-size: 13px; color: #2a9d8f; font-weight: 700; margin-bottom: 4px; }
+  .new-record {
+    display: inline-block; background: #fff3c4; color: #b7791f; font-weight: 800;
+    border-radius: 999px; padding: 5px 14px; font-size: 13px; margin: 6px 0;
+  }
+  .miss-box {
+    background: #f6fcfb; border-radius: 14px; padding: 12px; margin: 12px 0;
+    font-size: 15px; color: #3b3b4f; text-align: left;
+  }
+  .miss-title { font-size: 12px; color: #8fb8b2; font-weight: 700; margin-bottom: 6px; text-align: center; }
+  .miss-row { padding: 7px 4px; border-bottom: 1px dashed #e2f2ef; }
+  .miss-row:last-child { border-bottom: none; }
+  .miss-q { font-size: 13px; color: #5f7a76; }
+  .miss-a { font-size: 16px; font-weight: 800; color: #d13a63; }
+  .miss-a small { font-size: 11px; color: #a5c8c2; font-weight: 400; margin-left: 4px; }
+  .result-btns { display: flex; gap: 10px; margin-top: 8px; }
+  .result-btns button {
+    flex: 1; padding: 14px; border: none; border-radius: 14px; font-size: 15px;
+    font-weight: 800; cursor: pointer;
+  }
+  .btn-retry { background: linear-gradient(135deg, #f4749b, #f9a06b); color: #fff; }
+  .btn-home { background: #e2f2ef; color: #2a9d8f; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== ホーム画面 ===== -->
+  <div id="scr-home" class="screen active">
+    <div class="app-title">🗾 日本地理クイズ</div>
+    <div class="app-sub">都道府県と県庁所在地を入力でこたえよう</div>
+
+    <div class="card">
+      <h2>もんだいの種類</h2>
+      <div class="dir-row">
+        <button class="dir-btn on" id="dir-pref" onclick="setDir('pref')">都道府県をあてる<small>県庁所在地 → 都道府県</small></button>
+        <button class="dir-btn" id="dir-cap" onclick="setDir('cap')">県庁所在地をあてる<small>都道府県 → 県庁所在地</small></button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>はんい（地方をえらぶ）</h2>
+      <div class="range-grid" id="region-grid"></div>
+    </div>
+
+    <button class="big-btn" onclick="startQuiz()">クイズスタート！<small id="start-note"></small></button>
+
+    <div class="card" style="margin-top:14px;">
+      <h2>📊 きろく（パーフェクトめざそう）</h2>
+      <div id="rec-list"><div class="rec-empty">まだ記録がないよ。クイズをやってみよう！</div></div>
+    </div>
+  </div>
+
+  <!-- ===== クイズ画面 ===== -->
+  <div id="scr-quiz" class="screen">
+    <div class="quiz-top">
+      <div class="progress-box"><span class="num" id="q-no">1</span> / <span id="q-total">7</span>もん</div>
+      <button class="quit-btn" onclick="quitQuiz()">やめる</button>
+    </div>
+    <div class="q-card">
+      <span class="q-region" id="q-region"></span>
+      <div class="q-ask" id="q-ask"></div>
+      <div class="q-word" id="q-word"></div>
+    </div>
+    <div class="answer-row">
+      <input type="text" class="answer-input" id="answer-input" placeholder="ここに入力" autocomplete="off" autocapitalize="off">
+      <button class="submit-btn" id="submit-btn" onclick="submitAnswer()">こたえる</button>
+    </div>
+    <div class="judge-box" id="judge-box">
+      <div class="judge-mark" id="judge-mark"></div>
+      <div class="judge-ans" id="judge-ans"></div>
+      <div class="judge-yomi" id="judge-yomi"></div>
+    </div>
+    <button id="next-btn" onclick="nextQuestion()">つぎへ ▶</button>
+    <div class="input-note">ひらがなでも漢字でもOK！「県」「市」はつけなくてもOK</div>
+  </div>
+
+  <!-- ===== 結果画面 ===== -->
+  <div id="scr-result" class="screen">
+    <div class="card result-card">
+      <div class="result-emoji" id="result-emoji">🎉</div>
+      <div class="result-score"><span id="result-num">0</span><small> / <span id="result-total">0</span>もん正解</small></div>
+      <div class="result-msg" id="result-msg"></div>
+      <div class="result-best" id="result-best"></div>
+      <div id="result-record"></div>
+      <div id="miss-area"></div>
+      <div class="result-btns">
+        <button class="btn-retry" onclick="startQuiz()">もう一回</button>
+        <button class="btn-home" onclick="goHome()">ホームへ</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+"use strict";
+
+/* ===== データ：47都道府県 =====
+   p=都道府県名(正式) pY=よみ c=県庁所在地 cY=よみ r=地方 */
+const PREFS = [
+  { p:"北海道",   pY:"ほっかいどう", c:"札幌",   cY:"さっぽろ",   r:"北海道" },
+  { p:"青森県",   pY:"あおもり",   c:"青森",   cY:"あおもり",   r:"東北" },
+  { p:"岩手県",   pY:"いわて",     c:"盛岡",   cY:"もりおか",   r:"東北" },
+  { p:"宮城県",   pY:"みやぎ",     c:"仙台",   cY:"せんだい",   r:"東北" },
+  { p:"秋田県",   pY:"あきた",     c:"秋田",   cY:"あきた",     r:"東北" },
+  { p:"山形県",   pY:"やまがた",   c:"山形",   cY:"やまがた",   r:"東北" },
+  { p:"福島県",   pY:"ふくしま",   c:"福島",   cY:"ふくしま",   r:"東北" },
+  { p:"茨城県",   pY:"いばらき",   c:"水戸",   cY:"みと",       r:"関東" },
+  { p:"栃木県",   pY:"とちぎ",     c:"宇都宮", cY:"うつのみや", r:"関東" },
+  { p:"群馬県",   pY:"ぐんま",     c:"前橋",   cY:"まえばし",   r:"関東" },
+  { p:"埼玉県",   pY:"さいたま",   c:"さいたま", cY:"さいたま", r:"関東" },
+  { p:"千葉県",   pY:"ちば",       c:"千葉",   cY:"ちば",       r:"関東" },
+  { p:"東京都",   pY:"とうきょう", c:"東京",   cY:"とうきょう", r:"関東", capAlt:["新宿","しんじゅく"] },
+  { p:"神奈川県", pY:"かながわ",   c:"横浜",   cY:"よこはま",   r:"関東" },
+  { p:"新潟県",   pY:"にいがた",   c:"新潟",   cY:"にいがた",   r:"中部" },
+  { p:"富山県",   pY:"とやま",     c:"富山",   cY:"とやま",     r:"中部" },
+  { p:"石川県",   pY:"いしかわ",   c:"金沢",   cY:"かなざわ",   r:"中部" },
+  { p:"福井県",   pY:"ふくい",     c:"福井",   cY:"ふくい",     r:"中部" },
+  { p:"山梨県",   pY:"やまなし",   c:"甲府",   cY:"こうふ",     r:"中部" },
+  { p:"長野県",   pY:"ながの",     c:"長野",   cY:"ながの",     r:"中部" },
+  { p:"岐阜県",   pY:"ぎふ",       c:"岐阜",   cY:"ぎふ",       r:"中部" },
+  { p:"静岡県",   pY:"しずおか",   c:"静岡",   cY:"しずおか",   r:"中部" },
+  { p:"愛知県",   pY:"あいち",     c:"名古屋", cY:"なごや",     r:"中部" },
+  { p:"三重県",   pY:"みえ",       c:"津",     cY:"つ",         r:"近畿" },
+  { p:"滋賀県",   pY:"しが",       c:"大津",   cY:"おおつ",     r:"近畿" },
+  { p:"京都府",   pY:"きょうと",   c:"京都",   cY:"きょうと",   r:"近畿" },
+  { p:"大阪府",   pY:"おおさか",   c:"大阪",   cY:"おおさか",   r:"近畿" },
+  { p:"兵庫県",   pY:"ひょうご",   c:"神戸",   cY:"こうべ",     r:"近畿" },
+  { p:"奈良県",   pY:"なら",       c:"奈良",   cY:"なら",       r:"近畿" },
+  { p:"和歌山県", pY:"わかやま",   c:"和歌山", cY:"わかやま",   r:"近畿" },
+  { p:"鳥取県",   pY:"とっとり",   c:"鳥取",   cY:"とっとり",   r:"中国" },
+  { p:"島根県",   pY:"しまね",     c:"松江",   cY:"まつえ",     r:"中国" },
+  { p:"岡山県",   pY:"おかやま",   c:"岡山",   cY:"おかやま",   r:"中国" },
+  { p:"広島県",   pY:"ひろしま",   c:"広島",   cY:"ひろしま",   r:"中国" },
+  { p:"山口県",   pY:"やまぐち",   c:"山口",   cY:"やまぐち",   r:"中国" },
+  { p:"徳島県",   pY:"とくしま",   c:"徳島",   cY:"とくしま",   r:"四国" },
+  { p:"香川県",   pY:"かがわ",     c:"高松",   cY:"たかまつ",   r:"四国" },
+  { p:"愛媛県",   pY:"えひめ",     c:"松山",   cY:"まつやま",   r:"四国" },
+  { p:"高知県",   pY:"こうち",     c:"高知",   cY:"こうち",     r:"四国" },
+  { p:"福岡県",   pY:"ふくおか",   c:"福岡",   cY:"ふくおか",   r:"九州・沖縄" },
+  { p:"佐賀県",   pY:"さが",       c:"佐賀",   cY:"さが",       r:"九州・沖縄" },
+  { p:"長崎県",   pY:"ながさき",   c:"長崎",   cY:"ながさき",   r:"九州・沖縄" },
+  { p:"熊本県",   pY:"くまもと",   c:"熊本",   cY:"くまもと",   r:"九州・沖縄" },
+  { p:"大分県",   pY:"おおいた",   c:"大分",   cY:"おおいた",   r:"九州・沖縄" },
+  { p:"宮崎県",   pY:"みやざき",   c:"宮崎",   cY:"みやざき",   r:"九州・沖縄" },
+  { p:"鹿児島県", pY:"かごしま",   c:"鹿児島", cY:"かごしま",   r:"九州・沖縄" },
+  { p:"沖縄県",   pY:"おきなわ",   c:"那覇",   cY:"なは",       r:"九州・沖縄" },
+];
+
+const REGIONS = ["北海道","東北","関東","中部","近畿","中国","四国","九州・沖縄"];
+const ZENKOKU = "全国";
+
+/* ===== 状態 ===== */
+let dir = "pref";          // pref=都道府県をあてる / cap=県庁所在地をあてる
+let region = "北海道";
+let quizList = [];
+let qIndex = 0;
+let score = 0;
+let misses = [];
+let answered = false;
+
+/* ===== 入力の正規化・判定 ===== */
+function kataToHira(s) {
+  return s.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+}
+function normalize(s) {
+  return kataToHira(String(s).normalize("NFKC").trim().replace(/\s+/g, ""));
+}
+// 正解として受け付ける文字列のセットを作る
+function acceptSet(item) {
+  const set = new Set();
+  if (dir === "pref") {
+    set.add(item.p);                               // 東京都
+    set.add(item.p.replace(/[都道府県]$/, ""));     // 東京（北海道は「道」を落とさない）
+    if (item.p === "北海道") set.add("北海道");
+    set.add(item.pY);                              // とうきょう
+    const suf = item.p.slice(-1);
+    const sufY = { "都":"と", "道":"どう", "府":"ふ", "県":"けん" }[suf];
+    if (sufY) set.add(item.pY + sufY);             // とうきょうと
+  } else {
+    set.add(item.c);                               // 札幌
+    set.add(item.c + "市");                        // 札幌市
+    set.add(item.cY);                              // さっぽろ
+    set.add(item.cY + "し");                       // さっぽろし
+    (item.capAlt || []).forEach(a => { set.add(a); set.add(a + "市"); set.add(a + "区"); set.add(a + "く"); });
+  }
+  // 北海道は例外：「北海」だけは不正解にする
+  set.delete("北海");
+  return set;
+}
+function isCorrect(input, item) {
+  const n = normalize(input);
+  if (!n) return false;
+  const set = acceptSet(item);
+  for (const cand of set) {
+    if (n === cand || n === normalize(cand)) return true;
+  }
+  return false;
+}
+
+/* ===== ホーム画面 ===== */
+function setDir(d) {
+  dir = d;
+  document.getElementById("dir-pref").classList.toggle("on", d === "pref");
+  document.getElementById("dir-cap").classList.toggle("on", d === "cap");
+  renderRecords();
+}
+function setRegion(r) {
+  region = r;
+  document.querySelectorAll(".range-chip").forEach(el => {
+    el.classList.toggle("on", el.dataset.r === r);
+  });
+  updateStartNote();
+}
+function regionItems(r) {
+  return r === ZENKOKU ? PREFS.slice() : PREFS.filter(x => x.r === r);
+}
+function updateStartNote() {
+  const n = regionItems(region).length;
+  document.getElementById("start-note").textContent = `${region}・全${n}もん`;
+}
+function renderRegionChips() {
+  const grid = document.getElementById("region-grid");
+  grid.innerHTML = "";
+  REGIONS.forEach(r => {
+    const n = regionItems(r).length;
+    const el = document.createElement("div");
+    el.className = "range-chip" + (r === region ? " on" : "");
+    el.dataset.r = r;
+    el.innerHTML = `${r}<span class="cnt">${n}</span>`;
+    el.onclick = () => setRegion(r);
+    grid.appendChild(el);
+  });
+  const z = document.createElement("div");
+  z.className = "range-chip zenkoku" + (region === ZENKOKU ? " on" : "");
+  z.dataset.r = ZENKOKU;
+  z.innerHTML = `🏆 全国<span class="cnt">47</span>`;
+  z.onclick = () => setRegion(ZENKOKU);
+  grid.appendChild(z);
+  updateStartNote();
+}
+
+/* ===== 記録 ===== */
+function recKey(d, r) { return `chiri_best_${d}_${r}`; }
+function loadBest(d, r) {
+  try { return JSON.parse(localStorage.getItem(recKey(d, r))); } catch { return null; }
+}
+function saveBest(d, r, sc, total) {
+  localStorage.setItem(recKey(d, r), JSON.stringify({ score: sc, total }));
+}
+function renderRecords() {
+  const list = document.getElementById("rec-list");
+  const rows = [];
+  [...REGIONS, ZENKOKU].forEach(r => {
+    const b = loadBest(dir, r);
+    if (b) rows.push(`<div class="rec-row"><span class="rec-label">${r === ZENKOKU ? "🏆 全国" : r}</span><span class="rec-val">${b.score}<span class="of"> / ${b.total}もん</span></span></div>`);
+  });
+  list.innerHTML = rows.length ? rows.join("") : `<div class="rec-empty">まだ記録がないよ。クイズをやってみよう！</div>`;
+}
+
+/* ===== クイズ ===== */
+// 県庁所在地の表示名（東京だけ「市」をつけない）
+function capDisp(item) {
+  return item.p === "東京都" ? "東京" : item.c + "市";
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+function startQuiz() {
+  quizList = shuffle(regionItems(region));
+  qIndex = 0; score = 0; misses = [];
+  showScreen("scr-quiz");
+  document.getElementById("q-total").textContent = quizList.length;
+  renderQuestion();
+}
+function renderQuestion() {
+  answered = false;
+  const item = quizList[qIndex];
+  document.getElementById("q-no").textContent = qIndex + 1;
+  document.getElementById("q-region").textContent = item.r + "地方";
+  if (dir === "pref") {
+    document.getElementById("q-ask").textContent = "ここが県庁所在地の都道府県は？";
+    document.getElementById("q-word").textContent = capDisp(item);
+  } else {
+    document.getElementById("q-ask").textContent = "この都道府県の県庁所在地は？";
+    document.getElementById("q-word").textContent = item.p;
+  }
+  const input = document.getElementById("answer-input");
+  input.value = "";
+  input.className = "answer-input";
+  input.disabled = false;
+  document.getElementById("judge-box").className = "judge-box";
+  document.getElementById("next-btn").style.display = "none";
+  document.getElementById("submit-btn").style.display = "";
+  input.focus();
+}
+function submitAnswer() {
+  if (answered) return;
+  const input = document.getElementById("answer-input");
+  const item = quizList[qIndex];
+  if (!normalize(input.value)) { input.focus(); return; }
+  answered = true;
+  input.disabled = true;
+  document.getElementById("submit-btn").style.display = "none";
+
+  const ok = isCorrect(input.value, item);
+  const box = document.getElementById("judge-box");
+  const ansText = dir === "pref" ? item.p : capDisp(item);
+  const yomiText = dir === "pref" ? item.pY : item.cY;
+  if (ok) {
+    score++;
+    input.classList.add("ok");
+    box.className = "judge-box show ok";
+    document.getElementById("judge-mark").textContent = "⭕ せいかい！";
+  } else {
+    misses.push(item);
+    input.classList.add("ng");
+    box.className = "judge-box show ng";
+    document.getElementById("judge-mark").textContent = "❌ ざんねん…";
+  }
+  document.getElementById("judge-ans").textContent = "こたえ：" + ansText;
+  document.getElementById("judge-yomi").textContent = yomiText;
+  const nextBtn = document.getElementById("next-btn");
+  nextBtn.style.display = "block";
+  nextBtn.textContent = qIndex + 1 >= quizList.length ? "けっかを見る 🎉" : "つぎへ ▶";
+  nextBtn.focus();
+}
+function nextQuestion() {
+  qIndex++;
+  if (qIndex >= quizList.length) { showResult(); return; }
+  renderQuestion();
+}
+function quitQuiz() {
+  if (confirm("クイズをやめてホームにもどる？")) goHome();
+}
+
+/* ===== 結果 ===== */
+function showResult() {
+  showScreen("scr-result");
+  const total = quizList.length;
+  document.getElementById("result-num").textContent = score;
+  document.getElementById("result-total").textContent = total;
+
+  const rate = score / total;
+  let emoji, msg;
+  if (rate === 1)      { emoji = "👑"; msg = "パーフェクト！すごい！！"; }
+  else if (rate >= .8) { emoji = "🎉"; msg = "あとちょっとでパーフェクト！"; }
+  else if (rate >= .5) { emoji = "😊"; msg = "いいちょうし！まちがえたところをおぼえよう"; }
+  else                 { emoji = "💪"; msg = "なんかいもやればぜったいおぼえられるよ！"; }
+  document.getElementById("result-emoji").textContent = emoji;
+  document.getElementById("result-msg").textContent = msg;
+
+  const prev = loadBest(dir, region);
+  const recEl = document.getElementById("result-record");
+  if (!prev || score > prev.score) {
+    saveBest(dir, region, score, total);
+    recEl.innerHTML = `<span class="new-record">🏅 しんきろく！</span>`;
+  } else {
+    recEl.innerHTML = "";
+  }
+  const best = loadBest(dir, region);
+  document.getElementById("result-best").textContent = `ベスト：${best.score} / ${best.total}もん（${region}）`;
+
+  const missArea = document.getElementById("miss-area");
+  if (misses.length) {
+    const rows = misses.map(m => {
+      const q = dir === "pref" ? capDisp(m) : m.p;
+      const a = dir === "pref" ? m.p : capDisp(m);
+      const y = dir === "pref" ? m.pY : m.cY;
+      return `<div class="miss-row"><div class="miss-q">${q}</div><div class="miss-a">${a}<small>${y}</small></div></div>`;
+    }).join("");
+    missArea.innerHTML = `<div class="miss-box"><div class="miss-title">まちがえたもんだい（おぼえよう！）</div>${rows}</div>`;
+  } else {
+    missArea.innerHTML = "";
+  }
+  renderRecords();
+}
+function goHome() {
+  showScreen("scr-home");
+  renderRecords();
+}
+
+/* ===== キー操作（IME変換中のEnterは無視） ===== */
+document.getElementById("answer-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
+    e.preventDefault();
+    if (!answered) submitAnswer(); else nextQuestion();
+  }
+});
+// 「つぎへ」ボタンはfocus済みなのでEnterはネイティブclickで動く（documentリスナー不要）
+
+/* ===== 初期化 ===== */
+renderRegionChips();
+renderRecords();
+</script>
+</body>
+</html>
