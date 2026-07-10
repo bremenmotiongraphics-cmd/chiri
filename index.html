@@ -30,9 +30,9 @@
   .card h2 { font-size: 14px; color: #2a9d8f; margin-bottom: 10px; }
 
   /* ===== 出題形式トグル ===== */
-  .dir-row { display: flex; gap: 8px; }
+  .dir-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .dir-btn {
-    flex: 1; padding: 12px 4px; border-radius: 12px; border: 2px solid #d5ece8;
+    flex: 1 1 30%; padding: 12px 4px; border-radius: 12px; border: 2px solid #d5ece8;
     background: #f6fcfb; font-size: 13px; color: #5f7a76; cursor: pointer; font-weight: 700;
   }
   .dir-btn small { display: block; font-size: 9px; font-weight: 400; opacity: .8; margin-top: 2px; }
@@ -45,6 +45,26 @@
   #map-box .prefecture { fill: #e8f1ef; stroke: #9dbdb7; stroke-width: 1; }
   #map-box .prefecture.target { fill: #f4749b; stroke: #d13a63; stroke-width: 2.5; }
   #map-box .boundary-line { stroke: #c9ddd9; stroke-width: 3; }
+  /* ハードモード：答えの県の形だけ表示 */
+  #map-box.solo .prefecture:not(.target) { opacity: 0; }
+  #map-box.solo .boundary-line { display: none; }
+
+  /* ===== ヒント ===== */
+  .hint-area { margin-top: 14px; }
+  .hint-btn-row { display: flex; gap: 6px; justify-content: center; }
+  .hint-btn {
+    border: 2px solid #ffe1a8; background: #fff8ec; color: #c07b1f; border-radius: 999px;
+    padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .hint-btn.used { opacity: .35; pointer-events: none; }
+  .hint-line {
+    font-size: 13px; color: #8a6a2f; background: #fff8ec; border-radius: 10px;
+    padding: 8px 12px; margin-top: 6px; text-align: left;
+  }
+
+  /* ===== 2つ目の入力欄（両方答えるモード） ===== */
+  #answer-row2 { display: none; margin-top: 8px; }
+  #answer-row2.show { display: flex; }
   .map-credit { text-align: center; font-size: 10px; color: #b6cfca; margin-top: 8px; }
 
   /* ===== 地方選択 ===== */
@@ -176,6 +196,8 @@
         <button class="dir-btn on" id="dir-pref" onclick="setDir('pref')">都道府県<small>県庁所在地 → 都道府県</small></button>
         <button class="dir-btn" id="dir-cap" onclick="setDir('cap')">県庁所在地<small>都道府県 → 県庁所在地</small></button>
         <button class="dir-btn" id="dir-map" onclick="setDir('map')">地図<small>地図 → 都道府県</small></button>
+        <button class="dir-btn" id="dir-mapw" onclick="setDir('mapw')">地図W<small>地図 → 県＋県庁所在地</small></button>
+        <button class="dir-btn" id="dir-hard" onclick="setDir('hard')">🔥ハード<small>形だけ → 県＋県庁所在地</small></button>
       </div>
     </div>
 
@@ -426,10 +448,22 @@
   </g>
 </svg>
 </div>
+      <div class="hint-area">
+        <div class="hint-btn-row">
+          <button class="hint-btn" id="hint-btn0" onclick="showHint(0)">💡 ヒント1</button>
+          <button class="hint-btn" id="hint-btn1" onclick="showHint(1)">💡 ヒント2</button>
+          <button class="hint-btn" id="hint-btn2" onclick="showHint(2)">💡 ヒント3</button>
+        </div>
+        <div id="hint-list"></div>
+      </div>
     </div>
     <div class="answer-row">
       <input type="text" class="answer-input" id="answer-input" placeholder="ここに入力" autocomplete="off" autocapitalize="off">
       <button class="submit-btn" id="submit-btn" onclick="submitAnswer()">答える</button>
+    </div>
+    <div class="answer-row" id="answer-row2">
+      <input type="text" class="answer-input" id="answer-input2" placeholder="県庁所在地" autocomplete="off" autocapitalize="off">
+      <button class="submit-btn" id="submit-btn2" onclick="submitAnswer()">答える</button>
     </div>
     <div class="judge-box" id="judge-box">
       <div class="judge-mark" id="judge-mark"></div>
@@ -461,55 +495,56 @@
 "use strict";
 
 /* ===== データ：47都道府県 =====
-   p=都道府県名(正式) pY=よみ c=県庁所在地 cY=よみ r=地方 */
+   p=都道府県名(正式) pY=よみ c=県庁所在地 cY=よみ r=地方
+   t1,t2=県の豆知識ヒント tc=県庁所在地の豆知識ヒント */
 const PREFS = [
-  { p:"北海道",   pY:"ほっかいどう", c:"札幌",   cY:"さっぽろ",   r:"北海道・東北" },
-  { p:"青森県",   pY:"あおもり",   c:"青森",   cY:"あおもり",   r:"北海道・東北" },
-  { p:"岩手県",   pY:"いわて",     c:"盛岡",   cY:"もりおか",   r:"北海道・東北" },
-  { p:"宮城県",   pY:"みやぎ",     c:"仙台",   cY:"せんだい",   r:"北海道・東北" },
-  { p:"秋田県",   pY:"あきた",     c:"秋田",   cY:"あきた",     r:"北海道・東北" },
-  { p:"山形県",   pY:"やまがた",   c:"山形",   cY:"やまがた",   r:"北海道・東北" },
-  { p:"福島県",   pY:"ふくしま",   c:"福島",   cY:"ふくしま",   r:"北海道・東北" },
-  { p:"茨城県",   pY:"いばらき",   c:"水戸",   cY:"みと",       r:"関東" },
-  { p:"栃木県",   pY:"とちぎ",     c:"宇都宮", cY:"うつのみや", r:"関東" },
-  { p:"群馬県",   pY:"ぐんま",     c:"前橋",   cY:"まえばし",   r:"関東" },
-  { p:"埼玉県",   pY:"さいたま",   c:"さいたま", cY:"さいたま", r:"関東" },
-  { p:"千葉県",   pY:"ちば",       c:"千葉",   cY:"ちば",       r:"関東" },
-  { p:"東京都",   pY:"とうきょう", c:"東京",   cY:"とうきょう", r:"関東", capAlt:["新宿","しんじゅく"] },
-  { p:"神奈川県", pY:"かながわ",   c:"横浜",   cY:"よこはま",   r:"関東" },
-  { p:"新潟県",   pY:"にいがた",   c:"新潟",   cY:"にいがた",   r:"中部" },
-  { p:"富山県",   pY:"とやま",     c:"富山",   cY:"とやま",     r:"中部" },
-  { p:"石川県",   pY:"いしかわ",   c:"金沢",   cY:"かなざわ",   r:"中部" },
-  { p:"福井県",   pY:"ふくい",     c:"福井",   cY:"ふくい",     r:"中部" },
-  { p:"山梨県",   pY:"やまなし",   c:"甲府",   cY:"こうふ",     r:"中部" },
-  { p:"長野県",   pY:"ながの",     c:"長野",   cY:"ながの",     r:"中部" },
-  { p:"岐阜県",   pY:"ぎふ",       c:"岐阜",   cY:"ぎふ",       r:"中部" },
-  { p:"静岡県",   pY:"しずおか",   c:"静岡",   cY:"しずおか",   r:"中部" },
-  { p:"愛知県",   pY:"あいち",     c:"名古屋", cY:"なごや",     r:"中部" },
-  { p:"三重県",   pY:"みえ",       c:"津",     cY:"つ",         r:"近畿" },
-  { p:"滋賀県",   pY:"しが",       c:"大津",   cY:"おおつ",     r:"近畿" },
-  { p:"京都府",   pY:"きょうと",   c:"京都",   cY:"きょうと",   r:"近畿" },
-  { p:"大阪府",   pY:"おおさか",   c:"大阪",   cY:"おおさか",   r:"近畿" },
-  { p:"兵庫県",   pY:"ひょうご",   c:"神戸",   cY:"こうべ",     r:"近畿" },
-  { p:"奈良県",   pY:"なら",       c:"奈良",   cY:"なら",       r:"近畿" },
-  { p:"和歌山県", pY:"わかやま",   c:"和歌山", cY:"わかやま",   r:"近畿" },
-  { p:"鳥取県",   pY:"とっとり",   c:"鳥取",   cY:"とっとり",   r:"中国" },
-  { p:"島根県",   pY:"しまね",     c:"松江",   cY:"まつえ",     r:"中国" },
-  { p:"岡山県",   pY:"おかやま",   c:"岡山",   cY:"おかやま",   r:"中国" },
-  { p:"広島県",   pY:"ひろしま",   c:"広島",   cY:"ひろしま",   r:"中国" },
-  { p:"山口県",   pY:"やまぐち",   c:"山口",   cY:"やまぐち",   r:"中国" },
-  { p:"徳島県",   pY:"とくしま",   c:"徳島",   cY:"とくしま",   r:"四国" },
-  { p:"香川県",   pY:"かがわ",     c:"高松",   cY:"たかまつ",   r:"四国" },
-  { p:"愛媛県",   pY:"えひめ",     c:"松山",   cY:"まつやま",   r:"四国" },
-  { p:"高知県",   pY:"こうち",     c:"高知",   cY:"こうち",     r:"四国" },
-  { p:"福岡県",   pY:"ふくおか",   c:"福岡",   cY:"ふくおか",   r:"九州・沖縄" },
-  { p:"佐賀県",   pY:"さが",       c:"佐賀",   cY:"さが",       r:"九州・沖縄" },
-  { p:"長崎県",   pY:"ながさき",   c:"長崎",   cY:"ながさき",   r:"九州・沖縄" },
-  { p:"熊本県",   pY:"くまもと",   c:"熊本",   cY:"くまもと",   r:"九州・沖縄" },
-  { p:"大分県",   pY:"おおいた",   c:"大分",   cY:"おおいた",   r:"九州・沖縄" },
-  { p:"宮崎県",   pY:"みやざき",   c:"宮崎",   cY:"みやざき",   r:"九州・沖縄" },
-  { p:"鹿児島県", pY:"かごしま",   c:"鹿児島", cY:"かごしま",   r:"九州・沖縄" },
-  { p:"沖縄県",   pY:"おきなわ",   c:"那覇",   cY:"なは",       r:"九州・沖縄" },
+  { p:"北海道",   pY:"ほっかいどう", c:"札幌",   cY:"さっぽろ",   r:"北海道・東北", t1:"日本で一番広い", t2:"じゃがいも・メロンが有名", tc:"雪まつりで有名な街" },
+  { p:"青森県",   pY:"あおもり",   c:"青森",   cY:"あおもり",   r:"北海道・東北", t1:"りんごの生産量が日本一", t2:"ねぶた祭りが有名", tc:"本州で一番北の県庁所在地" },
+  { p:"岩手県",   pY:"いわて",     c:"盛岡",   cY:"もりおか",   r:"北海道・東北", t1:"本州で一番広い県", t2:"わんこそばが有名", tc:"冷麺とじゃじゃ麺が名物の街" },
+  { p:"宮城県",   pY:"みやぎ",     c:"仙台",   cY:"せんだい",   r:"北海道・東北", t1:"牛タンと笹かまが有名", t2:"東北地方の中心都市がある", tc:"伊達政宗の城下町" },
+  { p:"秋田県",   pY:"あきた",     c:"秋田",   cY:"あきた",     r:"北海道・東北", t1:"なまはげが有名", t2:"きりたんぽの本場", tc:"竿燈まつりの街" },
+  { p:"山形県",   pY:"やまがた",   c:"山形",   cY:"やまがた",   r:"北海道・東北", t1:"さくらんぼの生産量が日本一", t2:"将棋の駒づくりで有名", tc:"芋煮会と蔵王のふもとの街" },
+  { p:"福島県",   pY:"ふくしま",   c:"福島",   cY:"ふくしま",   r:"北海道・東北", t1:"全国で3番目に広い県", t2:"桃の生産がさかん", tc:"果物の産地として有名な街" },
+  { p:"茨城県",   pY:"いばらき",   c:"水戸",   cY:"みと",       r:"関東", t1:"納豆が有名", t2:"日本で2番目に大きい湖・霞ヶ浦がある", tc:"水戸黄門で有名な街" },
+  { p:"栃木県",   pY:"とちぎ",     c:"宇都宮", cY:"うつのみや", r:"関東", t1:"いちご「とちおとめ」が有名", t2:"日光東照宮がある", tc:"ぎょうざの街として有名" },
+  { p:"群馬県",   pY:"ぐんま",     c:"前橋",   cY:"まえばし",   r:"関東", t1:"草津や伊香保など温泉が多い", t2:"だるまの生産で有名", tc:"利根川が流れる街" },
+  { p:"埼玉県",   pY:"さいたま",   c:"さいたま", cY:"さいたま", r:"関東", t1:"海がない内陸の県", t2:"東京の北どなり", tc:"鉄道博物館がある街" },
+  { p:"千葉県",   pY:"ちば",       c:"千葉",   cY:"ちば",       r:"関東", t1:"落花生の生産量が日本一", t2:"東京ディズニーランドがある", tc:"幕張メッセがある街" },
+  { p:"東京都",   pY:"とうきょう", c:"東京",   cY:"とうきょう", r:"関東", capAlt:["新宿","しんじゅく"], t1:"日本の首都", t2:"人口が日本一", tc:"都庁は新宿にある" },
+  { p:"神奈川県", pY:"かながわ",   c:"横浜",   cY:"よこはま",   r:"関東", t1:"鎌倉の大仏がある", t2:"中華街が有名", tc:"日本で一番人口が多い市" },
+  { p:"新潟県",   pY:"にいがた",   c:"新潟",   cY:"にいがた",   r:"中部", t1:"お米「コシヒカリ」の本場", t2:"日本一長い信濃川が流れる", tc:"米どころの港町" },
+  { p:"富山県",   pY:"とやま",     c:"富山",   cY:"とやま",     r:"中部", t1:"くすり売りの歴史で有名", t2:"ホタルイカと立山連峰が有名", tc:"路面電車が走る街" },
+  { p:"石川県",   pY:"いしかわ",   c:"金沢",   cY:"かなざわ",   r:"中部", t1:"能登半島がある", t2:"金箔の生産量が日本一", tc:"兼六園という庭園がある街" },
+  { p:"福井県",   pY:"ふくい",     c:"福井",   cY:"ふくい",     r:"中部", t1:"恐竜の化石がたくさん見つかる", t2:"めがねフレームの生産量が日本一", tc:"「越前」の中心の街" },
+  { p:"山梨県",   pY:"やまなし",   c:"甲府",   cY:"こうふ",     r:"中部", t1:"ぶどうと桃の生産量が日本一", t2:"富士山がある（静岡との境）", tc:"武田信玄の本拠地だった街" },
+  { p:"長野県",   pY:"ながの",     c:"長野",   cY:"ながの",     r:"中部", t1:"海がない県で一番広い", t2:"軽井沢や善光寺が有名", tc:"善光寺の門前町" },
+  { p:"岐阜県",   pY:"ぎふ",       c:"岐阜",   cY:"ぎふ",       r:"中部", t1:"白川郷の合掌造りが有名", t2:"海がない内陸の県", tc:"織田信長ゆかりの街" },
+  { p:"静岡県",   pY:"しずおか",   c:"静岡",   cY:"しずおか",   r:"中部", t1:"お茶の生産量が日本一", t2:"富士山がある（山梨との境）", tc:"徳川家康ゆかりの街" },
+  { p:"愛知県",   pY:"あいち",     c:"名古屋", cY:"なごや",     r:"中部", t1:"自動車工業がさかん", t2:"味噌カツ・手羽先が名物", tc:"金のしゃちほこの城がある街" },
+  { p:"三重県",   pY:"みえ",       c:"津",     cY:"つ",         r:"近畿", t1:"伊勢神宮がある", t2:"松阪牛が有名", tc:"日本一短い名前の市" },
+  { p:"滋賀県",   pY:"しが",       c:"大津",   cY:"おおつ",     r:"近畿", t1:"日本一大きい琵琶湖がある", t2:"彦根城がある", tc:"琵琶湖のほとりの街" },
+  { p:"京都府",   pY:"きょうと",   c:"京都",   cY:"きょうと",   r:"近畿", t1:"金閣寺や清水寺がある", t2:"昔、日本の都があった", tc:"寺と神社がとても多い街" },
+  { p:"大阪府",   pY:"おおさか",   c:"大阪",   cY:"おおさか",   r:"近畿", t1:"たこ焼き・お好み焼きの本場", t2:"「天下の台所」と呼ばれた", tc:"通天閣がある街" },
+  { p:"兵庫県",   pY:"ひょうご",   c:"神戸",   cY:"こうべ",     r:"近畿", t1:"世界遺産の姫路城がある", t2:"淡路島がある", tc:"パンとスイーツが有名な港町" },
+  { p:"奈良県",   pY:"なら",       c:"奈良",   cY:"なら",       r:"近畿", t1:"大仏と鹿で有名", t2:"昔の都・平城京があった", tc:"大仏と鹿の街" },
+  { p:"和歌山県", pY:"わかやま",   c:"和歌山", cY:"わかやま",   r:"近畿", t1:"みかんと梅の生産量が日本一", t2:"高野山がある", tc:"お城がある紀州の街" },
+  { p:"鳥取県",   pY:"とっとり",   c:"鳥取",   cY:"とっとり",   r:"中国", t1:"大きな砂丘が有名", t2:"人口が一番少ない県", tc:"砂丘のある街" },
+  { p:"島根県",   pY:"しまね",     c:"松江",   cY:"まつえ",     r:"中国", t1:"出雲大社がある", t2:"しじみで有名な宍道湖がある", tc:"宍道湖のほとりの城下町" },
+  { p:"岡山県",   pY:"おかやま",   c:"岡山",   cY:"おかやま",   r:"中国", t1:"桃太郎伝説の地", t2:"きびだんごとマスカットが有名", tc:"後楽園という庭園がある街" },
+  { p:"広島県",   pY:"ひろしま",   c:"広島",   cY:"ひろしま",   r:"中国", t1:"世界遺産の厳島神社がある", t2:"お好み焼きが名物", tc:"平和記念公園がある街" },
+  { p:"山口県",   pY:"やまぐち",   c:"山口",   cY:"やまぐち",   r:"中国", t1:"本州の一番西にある", t2:"下関のふぐが有名", tc:"「西の京」と呼ばれる街" },
+  { p:"徳島県",   pY:"とくしま",   c:"徳島",   cY:"とくしま",   r:"四国", t1:"阿波おどりが有名", t2:"鳴門のうずしおが見られる", tc:"阿波おどりの街" },
+  { p:"香川県",   pY:"かがわ",     c:"高松",   cY:"たかまつ",   r:"四国", t1:"日本で一番小さい県", t2:"讃岐うどんの本場", tc:"栗林公園がある街" },
+  { p:"愛媛県",   pY:"えひめ",     c:"松山",   cY:"まつやま",   r:"四国", t1:"みかんの産地として有名", t2:"今治タオルが有名", tc:"道後温泉とお城がある街" },
+  { p:"高知県",   pY:"こうち",     c:"高知",   cY:"こうち",     r:"四国", t1:"坂本龍馬のふるさと", t2:"カツオの一本釣りが有名", tc:"よさこい祭りの街" },
+  { p:"福岡県",   pY:"ふくおか",   c:"福岡",   cY:"ふくおか",   r:"九州・沖縄", t1:"とんこつラーメンの本場", t2:"九州で一番人口が多い", tc:"博多祇園山笠のまつりの街" },
+  { p:"佐賀県",   pY:"さが",       c:"佐賀",   cY:"さが",       r:"九州・沖縄", t1:"有田焼・伊万里焼が有名", t2:"吉野ヶ里遺跡がある", tc:"熱気球の大会で有名な街" },
+  { p:"長崎県",   pY:"ながさき",   c:"長崎",   cY:"ながさき",   r:"九州・沖縄", t1:"カステラが有名", t2:"島の数が日本一", tc:"ちゃんぽん発祥の街" },
+  { p:"熊本県",   pY:"くまもと",   c:"熊本",   cY:"くまもと",   r:"九州・沖縄", t1:"阿蘇山がある", t2:"くまモンのふるさと", tc:"大きなお城がある街" },
+  { p:"大分県",   pY:"おおいた",   c:"大分",   cY:"おおいた",   r:"九州・沖縄", t1:"温泉の数が日本一", t2:"別府や湯布院が有名", tc:"温泉県の中心都市" },
+  { p:"宮崎県",   pY:"みやざき",   c:"宮崎",   cY:"みやざき",   r:"九州・沖縄", t1:"マンゴーが有名", t2:"プロ野球のキャンプ地として有名", tc:"南国ムードの県庁所在地" },
+  { p:"鹿児島県", pY:"かごしま",   c:"鹿児島", cY:"かごしま",   r:"九州・沖縄", t1:"桜島がある", t2:"黒豚とさつまいもが有名", tc:"桜島の向かいにある街" },
+  { p:"沖縄県",   pY:"おきなわ",   c:"那覇",   cY:"なは",       r:"九州・沖縄", t1:"日本で一番南の県", t2:"首里城がある", tc:"国際通りがにぎやかな街" },
 ];
 
 const REGIONS = ["北海道・東北","関東","中部","近畿","中国","四国","九州・沖縄"];
@@ -531,10 +566,10 @@ function kataToHira(s) {
 function normalize(s) {
   return kataToHira(String(s).normalize("NFKC").trim().replace(/\s+/g, ""));
 }
-// 正解として受け付ける文字列のセットを作る
-function acceptSet(item) {
+// 正解として受け付ける文字列のセットを作る（kind: "pref"=都道府県 / "cap"=県庁所在地）
+function acceptSet(item, kind) {
   const set = new Set();
-  if (dir !== "cap") {  // pref / map はどちらも都道府県名を答える
+  if (kind === "pref") {
     set.add(item.p);                               // 東京都
     set.add(item.p.replace(/[都道府県]$/, ""));     // 東京（北海道は「道」を落とさない）
     if (item.p === "北海道") set.add("北海道");
@@ -553,20 +588,23 @@ function acceptSet(item) {
   set.delete("北海");
   return set;
 }
-function isCorrect(input, item) {
+function isCorrect(input, item, kind) {
   const n = normalize(input);
   if (!n) return false;
-  const set = acceptSet(item);
+  const set = acceptSet(item, kind);
   for (const cand of set) {
     if (n === cand || n === normalize(cand)) return true;
   }
   return false;
 }
+// モード判定ヘルパー
+function isBothMode() { return dir === "mapw" || dir === "hard"; }
+function isMapMode() { return dir === "map" || dir === "mapw" || dir === "hard"; }
 
 /* ===== ホーム画面 ===== */
 function setDir(d) {
   dir = d;
-  ["pref", "cap", "map"].forEach(k => {
+  ["pref", "cap", "map", "mapw", "hard"].forEach(k => {
     document.getElementById("dir-" + k).classList.toggle("on", d === k);
   });
   renderRecords();
@@ -651,7 +689,12 @@ function highlightMap(item) {
     return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
   };
   let box;
-  if (region === ZENKOKU) {
+  if (dir === "hard") {
+    // ハード：県の形だけをアップで表示
+    const r = vbRect(tg);
+    const pad = Math.max(r.x2 - r.x1, r.y2 - r.y1) * 0.15;
+    box = { x1: r.x1 - pad, y1: r.y1 - pad, x2: r.x2 + pad, y2: r.y2 + pad };
+  } else if (region === ZENKOKU) {
     // 全国：答えの県のまわりを拡大表示
     const r = vbRect(tg);
     const pad = Math.max(r.x2 - r.x1, r.y2 - r.y1, 70) * 1.3;
@@ -701,15 +744,51 @@ function startQuiz() {
   document.getElementById("q-total").textContent = quizList.length;
   renderQuestion();
 }
+/* ===== ヒント =====
+   タップした分だけ出る（3つまで）。豆知識でついでに覚えられる */
+let hintTexts = [];
+function hintsFor(item) {
+  const capSame = item.p.startsWith(item.c);   // 千葉県/千葉 など
+  if (dir === "cap") {
+    const h1 = item.c === "さいたま" ? "県名と同じだけど、ひらがなで書くよ"
+             : capSame ? "県名と同じ名前だよ" : "県名とはちがう名前だよ";
+    return [h1, item.tc, `頭文字は「${item.cY[0]}」`];
+  }
+  if (isBothMode()) {
+    return [item.t1, item.tc, `頭文字は 県「${item.pY[0]}」・県庁所在地「${item.cY[0]}」`];
+  }
+  return [item.t1, item.t2, `頭文字は「${item.pY[0]}」`];  // pref / map
+}
+function setupHints(item) {
+  hintTexts = hintsFor(item);
+  document.getElementById("hint-list").innerHTML = "";
+  [0, 1, 2].forEach(i => document.getElementById("hint-btn" + i).classList.remove("used"));
+}
+function showHint(i) {
+  const btn = document.getElementById("hint-btn" + i);
+  if (btn.classList.contains("used")) return;
+  btn.classList.add("used");
+  const div = document.createElement("div");
+  div.className = "hint-line";
+  div.textContent = `💡 ヒント${i + 1}：${hintTexts[i]}`;
+  document.getElementById("hint-list").appendChild(div);
+}
+
 function renderQuestion() {
   answered = false;
   const item = quizList[qIndex];
   document.getElementById("q-no").textContent = qIndex + 1;
-  document.getElementById("q-region").textContent = item.r;
+  const regionEl = document.getElementById("q-region");
+  regionEl.textContent = item.r;
+  regionEl.style.display = dir === "hard" ? "none" : "";  // ハードは地方名も隠す
   const qWord = document.getElementById("q-word");
   const mapBox = document.getElementById("map-box");
-  if (dir === "map") {
-    document.getElementById("q-ask").textContent = "ピンク色の都道府県はどこ？";
+  mapBox.classList.toggle("solo", dir === "hard");
+  if (isMapMode()) {
+    document.getElementById("q-ask").textContent =
+      dir === "map"  ? "ピンク色の都道府県はどこ？" :
+      dir === "mapw" ? "ピンク色の都道府県と、その県庁所在地は？" :
+                       "この形の都道府県と、その県庁所在地は？";
     qWord.style.display = "none";
     mapBox.classList.add("show");
     highlightMap(item);
@@ -724,36 +803,61 @@ function renderQuestion() {
       qWord.textContent = item.p;
     }
   }
+  setupHints(item);
   const input = document.getElementById("answer-input");
+  const input2 = document.getElementById("answer-input2");
+  const both = isBothMode();
   input.value = "";
   input.className = "answer-input";
   input.disabled = false;
+  input.placeholder = both ? "都道府県" : "ここに入力";
+  input2.value = "";
+  input2.className = "answer-input";
+  input2.disabled = false;
+  document.getElementById("answer-row2").classList.toggle("show", both);
+  document.getElementById("submit-btn").style.display = both ? "none" : "";
+  document.getElementById("submit-btn2").style.display = "";
   document.getElementById("judge-box").className = "judge-box";
   document.getElementById("next-btn").style.display = "none";
-  document.getElementById("submit-btn").style.display = "";
   input.focus();
 }
 function submitAnswer() {
   if (answered) return;
   const input = document.getElementById("answer-input");
+  const input2 = document.getElementById("answer-input2");
   const item = quizList[qIndex];
+  const both = isBothMode();
   if (!normalize(input.value)) { input.focus(); return; }
+  if (both && !normalize(input2.value)) { input2.focus(); return; }
   answered = true;
   input.disabled = true;
+  input2.disabled = true;
   document.getElementById("submit-btn").style.display = "none";
+  document.getElementById("submit-btn2").style.display = "none";
 
-  const ok = isCorrect(input.value, item);
+  let ok, ansText, yomiText;
+  if (both) {
+    const ok1 = isCorrect(input.value, item, "pref");
+    const ok2 = isCorrect(input2.value, item, "cap");
+    ok = ok1 && ok2;
+    input.classList.add(ok1 ? "ok" : "ng");
+    input2.classList.add(ok2 ? "ok" : "ng");
+    ansText = `${item.p}・${capDisp(item)}`;
+    yomiText = `${item.pY}／${item.cY}`;
+  } else {
+    const kind = dir === "cap" ? "cap" : "pref";
+    ok = isCorrect(input.value, item, kind);
+    input.classList.add(ok ? "ok" : "ng");
+    ansText = kind === "cap" ? capDisp(item) : item.p;
+    yomiText = kind === "cap" ? item.cY : item.pY;
+  }
   const box = document.getElementById("judge-box");
-  const ansText = dir === "cap" ? capDisp(item) : item.p;
-  const yomiText = dir === "cap" ? item.cY : item.pY;
   if (ok) {
     score++;
-    input.classList.add("ok");
     box.className = "judge-box show ok";
     document.getElementById("judge-mark").textContent = "⭕ 正解！";
   } else {
     misses.push(item);
-    input.classList.add("ng");
     box.className = "judge-box show ng";
     document.getElementById("judge-mark").textContent = "❌ 残念…";
   }
@@ -803,9 +907,17 @@ function showResult() {
   const missArea = document.getElementById("miss-area");
   if (misses.length) {
     const rows = misses.map(m => {
-      const q = dir === "cap" ? m.p : (dir === "map" ? `地図（${m.r}）` : capDisp(m));
-      const a = dir === "cap" ? capDisp(m) : m.p;
-      const y = dir === "cap" ? m.cY : m.pY;
+      let q, a, y;
+      if (isBothMode()) {
+        q = dir === "hard" ? `形（${m.r}）` : `地図（${m.r}）`;
+        a = `${m.p}・${capDisp(m)}`;
+        y = `${m.pY}／${m.cY}`;
+      } else if (dir === "cap") {
+        q = m.p; a = capDisp(m); y = m.cY;
+      } else {
+        q = dir === "map" ? `地図（${m.r}）` : capDisp(m);
+        a = m.p; y = m.pY;
+      }
       return `<div class="miss-row"><div class="miss-q">${q}</div><div class="miss-a">${a}<small>${y}</small></div></div>`;
     }).join("");
     missArea.innerHTML = `<div class="miss-box"><div class="miss-title">間違えた問題（覚えよう！）</div>${rows}</div>`;
@@ -821,6 +933,18 @@ function goHome() {
 
 /* ===== キー操作（IME変換中のEnterは無視） ===== */
 document.getElementById("answer-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
+    e.preventDefault();
+    if (answered) { nextQuestion(); return; }
+    // 両方答えるモード：1つ目でEnterしたら2つ目の入力欄へ
+    if (isBothMode() && !normalize(document.getElementById("answer-input2").value)) {
+      document.getElementById("answer-input2").focus();
+    } else {
+      submitAnswer();
+    }
+  }
+});
+document.getElementById("answer-input2").addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
     e.preventDefault();
     if (!answered) submitAnswer(); else nextQuestion();
