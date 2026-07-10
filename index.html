@@ -686,6 +686,16 @@ function showScreen(id) {
 }
 function startQuiz() {
   quizList = shuffle(regionItems(region));
+  // 前回と同じ並び・同じ1問目にならないようにする（体感のランダム感アップ）
+  const orderKey = () => quizList.map(x => x.p).join(",");
+  const last = localStorage.getItem("chiri_last_order") || "";
+  const lastFirst = last.split(",")[0];
+  let tries = 0;
+  while (quizList.length > 1 && (orderKey() === last || quizList[0].p === lastFirst) && tries < 20) {
+    shuffle(quizList);
+    tries++;
+  }
+  localStorage.setItem("chiri_last_order", orderKey());
   qIndex = 0; score = 0; misses = [];
   showScreen("scr-quiz");
   document.getElementById("q-total").textContent = quizList.length;
