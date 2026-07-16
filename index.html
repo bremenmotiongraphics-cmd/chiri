@@ -650,7 +650,8 @@ function loadBest(d, r) {
   try { return JSON.parse(localStorage.getItem(recKey(d, r))); } catch { return null; }
 }
 function saveBest(d, r, sc, total) {
-  localStorage.setItem(recKey(d, r), JSON.stringify({ score: sc, total }));
+  // 保存に失敗しても結果表示は続行(プライベートモード・容量超過対策)
+  try { localStorage.setItem(recKey(d, r), JSON.stringify({ score: sc, total })); } catch (e) {}
 }
 function renderRecords() {
   const list = document.getElementById("rec-list");
